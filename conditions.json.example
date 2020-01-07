@@ -1,0 +1,24 @@
+{
+    "scaffold": {
+        "num_rings": {
+            "min": 1
+        }
+    },
+    "decoration": {
+        "mol_weight": {
+            "max": 300
+        },
+        "hba": {
+            "max": 3
+        },
+        "hbd": {
+            "max": 3
+        },
+        "clogp": {
+            "max": 3
+        },
+        "rotatable_bonds": {
+            "max": 3
+        }
+    }
+}
