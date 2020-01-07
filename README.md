@@ -76,7 +76,7 @@ To change it to a single-step model, only the `-d`option is to be changed to `al
 Train the DRD2 model using the training set created before.
 ~~~~
 (reinvent-scaffold-decorator) $> ./create_model.py -i drd2_decorator/training/001.smi -o drd2_decorator/models/model.empty
-(reinvent-scaffold-decorator) $> ./train_model.py -i drd2_decorator/models/model.empty -o drd2_decorator/models/model.trained -s drd2_decorator/training -e 50 -b 64
+(reinvent-scaffold-decorator) $> ./train_model.py -i drd2_decorator/models/model.empty -o drd2_decorator/models/model.trained -s drd2_decorator/training -e 50 -b 64 -d 0.2
 ~~~~
 
 Sample one scaffold exhaustively.
