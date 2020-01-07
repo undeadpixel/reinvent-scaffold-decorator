@@ -25,7 +25,7 @@ def _cleanup_decoration(dec_smi):
     return usc.to_smiles(usc.remove_attachment_point_numbers(dec_mol))
 
 
-class GenerateLibrary(ma.Action):
+class SampleScaffolds(ma.Action):
 
     cleanup_decoration_udf = psf.udf(_cleanup_decoration, pst.StringType())
 
@@ -176,7 +176,7 @@ class GenerateLibrary(ma.Action):
                 join_scaffold_udf("smiles", "decoration").alias("smiles"),
                 psf.map_concat(
                     psf.create_map(psf.col("attachment_points")[0],
-                                   GenerateLibrary.cleanup_decoration_udf("decoration")),
+                                   SampleScaffolds.cleanup_decoration_udf("decoration")),
                     "decorations",
                 ).alias("decorations"),
                 "scaffold")
@@ -205,7 +205,7 @@ class GenerateLibrary(ma.Action):
 
 def parse_args():
     """Parses input arguments."""
-    parser = argparse.ArgumentParser(description="Generates a library from a given model.")
+    parser = argparse.ArgumentParser(description="Generates large amounts of molecules from a set of scaffolds.")
     parser.add_argument("--model-path", "-m", help="Path to the model.", type=str, required=True)
     parser.add_argument("--input-scaffold-path", "-i",
                         help="Path to the input file with scaffolds in SMILES notation.", type=str, required=True)
@@ -239,16 +239,16 @@ def main():
     model = mm.DecoratorModel.load_from_file(args.model_path, mode="eval")
     input_scaffolds = list(uc.read_smi_file(args.input_scaffold_path))
 
-    generate_library = GenerateLibrary(model, num_randomized_smiles=args.num_randomized_smiles,
+    sample_scaffolds = SampleScaffolds(model, num_randomized_smiles=args.num_randomized_smiles,
                                        num_decorations_per_scaffold=args.num_decorations_per_scaffold,
                                        decoration_type=args.decoration_type, batch_size=args.batch_size,
                                        num_partitions=args.num_partitions, logger=LOG)
 
-    results_df = generate_library.run(input_scaffolds)
+    results_df = sample_scaffolds.run(input_scaffolds)
     results_df.write.parquet(args.output_parquet_folder)
 
 
-LOG = ul.get_logger(name="generate_library")
-SPARK, SC = us.SparkSessionSingleton.get("generate_library")
+LOG = ul.get_logger(name="sample_scaffolds")
+SPARK, SC = us.SparkSessionSingleton.get("sample_scaffolds")
 if __name__ == "__main__":
     main()
