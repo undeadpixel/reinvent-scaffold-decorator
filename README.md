@@ -65,6 +65,25 @@ A special script (`sample_scaffolds.py`) to exhaustively generate a large number
 Usage examples
 --------------
 
+Create the DRD2 dataset as described in the manuscript.
+~~~~
+(reinvent-scaffold-decorator) $> mkdir -p drd2_decorator/models
+(reinvent-scaffold-decorator) $> ./slice_db.py -i training_sets/excape.drd2.smi -u drd2_decorator/excape.drd2.hr.smi -s hr -f conditions.json.example
+(reinvent-scaffold-decorator) $> ./create_randomized_smiles.py -i drd2_decorator/excape.drd2.hr.smi -o drd2_decorator/training -n 50 -d first
+~~~~
+To change it to a single-step model, only the `-d`option is to be changed to `all` and all the decorations would be added to the dataset and not only the first one.
+
+Train the DRD2 model using the training set created before.
+~~~~
+(reinvent-scaffold-decorator) $> ./create_model.py -i drd2_decorator/training/001.smi -o drd2_decorator/models/model.empty
+(reinvent-scaffold-decorator) $> ./train_model.py -i drd2_decorator/models/model.empty -o drd2_decorator/models/model.trained -s drd2_decorator/training -e 50 -b 64
+~~~~
+
+Sample one scaffold exhaustively.
+~~~~
+(reinvent-scaffold-decorator) $> echo "[*:0]C1CCCCC1[*:1]" > scaffold.smi
+(reinvent-scaffold-decorator) $> ./sample_scaffolds.py -m drd2_decorator/models/model.trained.50 -i scaffold.smi -o generated_molecules.parquet -r 32 -n 32
+~~~~
 
 Bugs, Errors, Improvements, Suggestions, etc...
 ----------------------------------
