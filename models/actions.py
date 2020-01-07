@@ -88,7 +88,6 @@ class TrainModel(Action):
         """
         for epoch, training_set in zip(range(1, self.epochs + 1), self.training_sets):
             dataloader = self._initialize_dataloader(training_set)
-            self._log("info", "Epoch dataset size: %d", len(dataloader))
             epoch_iterator = self._epoch_iterator(dataloader)
             yield len(dataloader), epoch_iterator
 

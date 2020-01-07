@@ -30,7 +30,7 @@ class SampleScaffolds(ma.Action):
     cleanup_decoration_udf = psf.udf(_cleanup_decoration, pst.StringType())
 
     def __init__(self, model, batch_size=128, num_randomized_smiles=32, num_decorations_per_scaffold=32,
-                 max_randomized_smiles_sample=10000, num_partitions=1000, decoration_type="single", logger=None):
+                 max_randomized_smiles_sample=10000, num_partitions=1000, decorator_type="multi", logger=None):
         ma.Action.__init__(self, logger)
 
         self.model = model
@@ -39,7 +39,7 @@ class SampleScaffolds(ma.Action):
         self.num_decorations_per_scaffold = num_decorations_per_scaffold
         self.max_randomized_smiles_sample = max_randomized_smiles_sample
         self.num_partitions = num_partitions
-        self.decoration_type = decoration_type
+        self.decorator_type = decorator_type
 
         self._sample_model_action = ma.SampleModel(self.model, self.batch_size, self.logger)
         self._tmp_dir = tempfile.mkdtemp(prefix="gen_lib")
@@ -142,12 +142,12 @@ class SampleScaffolds(ma.Action):
         sampled_df = SPARK.createDataFrame(SC.textFile(self._tmp_path(
             "sampled_decorations"), self.num_partitions).map(_read_rows))
 
-        if self.decoration_type == "single":
+        if self.decorator_type == "single":
             processed_df = self._join_results_single(scaffolds_df, sampled_df)
-        elif self.decoration_type == "all":
-            processed_df = self._join_results_all(scaffolds_df, sampled_df)
+        elif self.decorator_type == "multi":
+            processed_df = self._join_results_multi(scaffolds_df, sampled_df)
         else:
-            raise ValueError("decoration_type has an invalid value '{}'".format(self.decoration_type))
+            raise ValueError("decorator_type has an invalid value '{}'".format(self.decorator_type))
 
         return processed_df\
             .where("smiles IS NOT NULL")\
@@ -157,7 +157,7 @@ class SampleScaffolds(ma.Action):
                 psf.first("decorations").alias("decorations"),
                 psf.count("smiles").alias("count"))
 
-    def _join_results_single(self, scaffolds_df, sampled_df):
+    def _join_results_multi(self, scaffolds_df, sampled_df):
         def _join_scaffold(scaff, dec):
             mol = usc.join(scaff, dec)
             if mol:
@@ -181,7 +181,7 @@ class SampleScaffolds(ma.Action):
                 ).alias("decorations"),
                 "scaffold")
 
-    def _join_results_all(self, scaffolds_df, sampled_df):
+    def _join_results_single(self, scaffolds_df, sampled_df):
         def _join_scaffold(scaff, decs):
             mol = usc.join_joined_attachments(scaff, decs)
             if mol:
@@ -225,9 +225,9 @@ def parse_args():
                         help="Number of Spark partitions to use (leave it if you don't know what it means) \
                             [DEFAULT: 1000]",
                         type=int, default=1000)
-    parser.add_argument("--decoration-type", "-d",
-                        help="Type of decoration of the model TYPES=(single, all) [DEFAULT: single].",
-                        type=str, default="single")
+    parser.add_argument("--decorator-type", "-d",
+                        help="Type of decorator TYPES=(single, multi) [DEFAULT: multi].",
+                        type=str, default="multi")
 
     return parser.parse_args()
 
@@ -241,7 +241,7 @@ def main():
 
     sample_scaffolds = SampleScaffolds(model, num_randomized_smiles=args.num_randomized_smiles,
                                        num_decorations_per_scaffold=args.num_decorations_per_scaffold,
-                                       decoration_type=args.decoration_type, batch_size=args.batch_size,
+                                       decorator_type=args.decorator_type, batch_size=args.batch_size,
                                        num_partitions=args.num_partitions, logger=LOG)
 
     results_df = sample_scaffolds.run(input_scaffolds)

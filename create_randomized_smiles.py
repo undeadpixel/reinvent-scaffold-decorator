@@ -22,9 +22,9 @@ def parse_args():
                         type=int, default=1)
     parser.add_argument("--num-partitions", "-p", help="Number of SPARK partitions to use [DEFAULT: 1000]",
                         type=int, default=1000)
-    parser.add_argument("--decoration-type", "-d",
-                        help="Type of decoration of the model TYPES=(first, all) [DEFAULT: first].",
-                        type=str, default="first")
+    parser.add_argument("--decorator-type", "-d",
+                        help="Type of training set, depending on the decorator TYPES=(single, multi) [DEFAULT: multi].",
+                        type=str, default="multi")
 
     return parser.parse_args()
 
@@ -35,7 +35,7 @@ def _to_sliced_mol(row):
     return usc.SlicedMol(uc.to_mol(scaffold_smi), {i: uc.to_mol(dec) for i, dec in enumerate(decoration_smis)})
 
 
-def _format_training_set_row_single(sliced_mol):
+def _format_training_set_row_multi(sliced_mol):
     scaff_smi, dec_smis = sliced_mol.to_smiles(variant="random")
 
     first_num = usc.get_first_attachment_point(scaff_smi)
@@ -44,7 +44,7 @@ def _format_training_set_row_single(sliced_mol):
     return (usc.remove_attachment_point_numbers(scaff_smi), usc.remove_attachment_point_numbers(decoration_smi))
 
 
-def _format_training_set_row_all(sliced_mol):
+def _format_training_set_row_single(sliced_mol):
     scaff_smi, dec_smis = sliced_mol.to_smiles(variant="random")
 
     attachment_points = usc.get_attachment_points(scaff_smi)
@@ -65,10 +65,10 @@ def main():
 
     os.makedirs(args.output_smi_folder_path, exist_ok=True)
 
-    if args.decoration_type == "first":
+    if args.decorator_type == "single":
         format_func = _format_training_set_row_single
-    elif args.decoration_type == "all":
-        format_func = _format_training_set_row_all
+    elif args.decorator_type == "multi":
+        format_func = _format_training_set_row_multi
 
     for i in range(args.num_files):
         with open("{}/{:03d}.smi".format(args.output_smi_folder_path, i), "w+") as out_file:

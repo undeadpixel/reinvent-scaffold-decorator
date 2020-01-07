@@ -84,9 +84,7 @@ def parse_args():
 
 
 def _to_smiles_rows(row):
-    # dicts have insert order and not key ordering in python 3.6
-    decorations = [smi for num, smi in sorted(row["decorations"].items())]
-    return "{}\t{}\t{}".format(row["scaffold"], ";".join(decorations), row["smiles"])
+    return "{}\t{}\t{}".format(row["scaffold"], ";".join(row["decorations"]), row["smiles"])
 
 
 def main():
