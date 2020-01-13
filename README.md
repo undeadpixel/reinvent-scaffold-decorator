@@ -1,7 +1,7 @@
 Implementation of the SMILES-based scaffold decorator used in "SMILES-based deep generative scaffold decorator for de-novo drug design"
 =======================================================================================================================================
 
-This repository holds all the code used to create, train and sample a SMILES-based scaffold decorator described in [SMILES-based deep generative scaffold decorator for de-novo drug design](). Additionally it contains the code for pre-processing the training set, as explained in the manuscript. 
+This repository holds all the code used to create, train and sample a SMILES-based scaffold decorator described in [SMILES-based deep generative scaffold decorator for de-novo drug design](). Additionally, it contains the code for pre-processing the training set, as explained in the manuscript. 
 
 The scripts and folders are the following:
 
@@ -11,7 +11,7 @@ The scripts and folders are the following:
 
 Requirements
 ------------
-The repository includes a Conda `environment.yml` file with the required libraries to run all the scripts. In some scripts Spark 2.4.3 is required and by default should run in local mode. For more complex set-ups, please refer to the [Spark documentation](http://spark.apache.org/docs/2.4.3/). All models were tested on Linux with both a Tesla V-100 and a Geforce 2070. It should work just fine with other Linux setups and a mid-high range GPU.
+The repository includes a Conda `environment.yml` file with the required libraries to run all the scripts. In some scripts Spark 2.4.3 is required and by default should run in local mode without any issues. For more complex set-ups, please refer to the [Spark documentation](http://spark.apache.org/docs/2.4.3/). All models were tested on Linux with both a Tesla V-100 and a Geforce 2070. It should work just fine with other Linux setups and a mid-high range GPU.
 
 Install
 -------
@@ -87,4 +87,4 @@ Sample one scaffold exhaustively.
 Bugs, errors, improvements, suggestions, etc.
 -----------------------------------------------
 
-The software was thoroughly tested, although bugs may appear. Don't hesitate to contact us if you find any, or even better, send a pull request or open an issue. For other inquiries, please send an email to josep.arus@dcb.unibe.ch and we will be happy to answer you :).
+The software was thoroughly tested, although bugs may appear. Don't hesitate to contact us if you find any, or even better, send a pull request or open an issue. For other inquiries, please send an email to josep.arus@dcb.unibe.ch and we will be happy to answer you :smile:.
