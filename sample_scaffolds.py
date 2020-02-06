@@ -86,8 +86,10 @@ class SampleScaffolds(ma.Action):
 
             # merge decorated molecules
             joined_df = self._join_results(scaffolds_df).persist()
-            self._log("info", "Joined %d -> %d (valid) -> %d unique sampled scaffolds",
-                      scaffolds_df.count(), joined_df.agg(psf.sum("count")).head()[0], joined_df.count())
+
+            if joined_df.count() > 0:
+                self._log("info", "Joined %d -> %d (valid) -> %d unique sampled scaffolds",
+                          scaffolds_df.count(), joined_df.agg(psf.sum("count")).head()[0], joined_df.count())
 
             scaffolds_df = joined_df.join(results_df, on="smiles", how="left_anti")\
                 .select("smiles", "scaffold", "decorations")\
@@ -209,8 +211,8 @@ def parse_args():
     parser.add_argument("--model-path", "-m", help="Path to the model.", type=str, required=True)
     parser.add_argument("--input-scaffold-path", "-i",
                         help="Path to the input file with scaffolds in SMILES notation.", type=str, required=True)
-    parser.add_argument("--output-parquet-folder", "-o",
-                        help="Path to the output Apache Parquet folder.", type=str, required=True)
+    parser.add_argument("--output-path", "-o",
+                        help="Path to the output file or directory (see --output-format option for more information).", type=str, required=True)
     parser.add_argument("--batch-size", "-b",
                         help="Batch size (beware GPU memory usage) [DEFAULT: 128]", type=int, default=128)
     parser.add_argument("--num-randomized-smiles", "-r",
@@ -228,6 +230,9 @@ def parse_args():
     parser.add_argument("--decorator-type", "-d",
                         help="Type of decorator TYPES=(single, multi) [DEFAULT: multi].",
                         type=str, default="multi")
+    parser.add_argument("--output-format", "--of",
+                        help="Format of the output FORMATS=(parquet,csv) [DEFAULT: parquet].",
+                        type=str, default="parquet")
 
     return parser.parse_args()
 
@@ -245,7 +250,11 @@ def main():
                                        num_partitions=args.num_partitions, logger=LOG)
 
     results_df = sample_scaffolds.run(input_scaffolds)
-    results_df.write.parquet(args.output_parquet_folder)
+
+    if args.output_format == "parquet":
+        results_df.write.parquet(args.output_path)
+    else:
+        results_df.toPandas().to_csv(args.output_path)
 
 
 LOG = ul.get_logger(name="sample_scaffolds")
