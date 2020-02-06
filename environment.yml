@@ -6,14 +6,16 @@ channels:
   - conda-forge
 dependencies:
   - python=3.6
-  - rdkit
+  - rdkit=2019.09.3.0
   - pytorch=1.1.0
   - cudatoolkit=9.0
   - tqdm
   - scipy
   - matplotlib
-  - pyspark
+  - pyspark=2.4.4
+  - pandas
   - pip
   - pip:
-    - tb-nightly
     - future
+    - tensorboard==1.15.0
+    - tensorflow==1.15.2
