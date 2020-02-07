@@ -11,7 +11,7 @@ The scripts and folders are the following:
 
 Requirements
 ------------
-The repository includes a Conda `environment.yml` file with the required libraries to run all the scripts. In some scripts Spark 2.4.3 is required and by default should run in local mode without any issues. For more complex set-ups, please refer to the [Spark documentation](http://spark.apache.org/docs/2.4.3/). All models were tested on Linux with both a Tesla V-100 and a Geforce 2070. It should work just fine with other Linux setups and a mid-high range GPU.
+The repository includes a Conda `environment.yml` file with the required libraries to run all the scripts. In some scripts Spark 2.4 is required (and thus Java 8) and by default should run in local mode without any issues. For more complex set-ups, please refer to the [Spark documentation](http://spark.apache.org/docs/2.4.3/). All models were tested on Linux with both a Tesla V-100 and a Geforce 2070. It should work just fine with other Linux setups and a mid-high range GPU.
 
 Install
 -------
