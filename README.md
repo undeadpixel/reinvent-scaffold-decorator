@@ -58,7 +58,7 @@ A special script (`sample_scaffolds.py`) to exhaustively generate a large number
 2) Samples `n` times each randomized SMILES generated in the previous step (`-n`to change the value).
 3) Joins the scaffolds with the generated decorations and removes duplicates/invalids.
 4) In the case of the single-step, nothing more is necessary, but in the multi-step model, a loop starting at step 1 is repeated until everything is fully decorated.
-5) Everything is written down in a parquet file for further analysis.
+5) Everything, including the half-decorated molecules, is written down in a parquet file for further analysis. The results have to be then extracted from the parquet/csv file (i.e. by extracting SMILES that have the * token, for instance).
 
 **CAUTION:** Large `n` and `r`parameters should be used for the single-step decorator model (for instance `r=2048` and `n=4096`). In the case of the multi-step model, very low values should be used instead (e.g. `r=32` and `n=64`).
 
