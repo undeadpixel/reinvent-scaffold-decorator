@@ -79,10 +79,11 @@ Train the DRD2 model using the training set created before.
 Sample one scaffold exhaustively.
 ~~~~
 (reinvent-scaffold-decorator) $> echo "[*:0]C1CCCCC1[*:1]" > scaffold.smi
-(reinvent-scaffold-decorator) $> ./sample_scaffolds.py -m drd2_decorator/models/model.trained.50 -i scaffold.smi -o generated_molecules.parquet -r 32 -n 32 -d multi
+(reinvent-scaffold-decorator) $> spark-submit --driver-memory=8g sample_scaffolds.py -m drd2_decorator/models/model.trained.50 -i scaffold.smi -o generated_molecules.parquet -r 32 -n 32 -d multi
 ~~~~
 
 **Notice**: To change it to a single-step model, the `-d single` option must be used in all cases where `-d multi` appears.
+**Caution**: Spark run in local mode generally has a default of 1g of memory. This can be insufficient in some cases. That is why we use `spark-submit` to run the last script. Please change the --driver-memory=XXg to a suitable value.
 
 Bugs, errors, improvements, suggestions, etc.
 -----------------------------------------------
