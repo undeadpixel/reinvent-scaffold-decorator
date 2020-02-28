@@ -52,6 +52,8 @@ class SampleScaffolds(ma.Action):
         def _generate_randomized_scaffolds(smi, num_rand=self.num_randomized_smiles,
                                            max_rand=self.max_randomized_smiles_sample):
             mol = uc.to_mol(smi)
+            if not mol:
+                return []
             randomized_scaffolds = set()
             for _ in range(max_rand):
                 randomized_scaffolds.add(usc.to_smiles(mol, variant="random"))
@@ -85,25 +87,28 @@ class SampleScaffolds(ma.Action):
             self._log("info", "Sampled %d scaffolds.", scaffolds_df.count())
 
             # merge decorated molecules
-            joined_df = self._join_results(scaffolds_df).persist()
+            joined_df = self._join_results(scaffolds_df)
 
-            if joined_df.count() > 0:
+            if joined_df:
                 self._log("info", "Joined %d -> %d (valid) -> %d unique sampled scaffolds",
                           scaffolds_df.count(), joined_df.agg(psf.sum("count")).head()[0], joined_df.count())
 
-            scaffolds_df = joined_df.join(results_df, on="smiles", how="left_anti")\
-                .select("smiles", "scaffold", "decorations")\
-                .where("smiles LIKE '%*%'")
-            self._log("info", "Obtained %d scaffolds for next iteration.", scaffolds_df.count())
+                scaffolds_df = joined_df.join(results_df, on="smiles", how="left_anti")\
+                    .select("smiles", "scaffold", "decorations")\
+                    .where("smiles LIKE '%*%'")
 
-            results_df = results_df.union(joined_df)\
-                .groupBy("smiles")\
-                .agg(
-                    psf.first("scaffold").alias("scaffold"),
-                    psf.first("decorations").alias("decorations"),
-                    psf.sum("count").alias("count"))\
-                .persist()
-            i += 1
+                results_df = results_df.union(joined_df)\
+                    .groupBy("smiles")\
+                    .agg(
+                        psf.first("scaffold").alias("scaffold"),
+                        psf.first("decorations").alias("decorations"),
+                        psf.sum("count").alias("count"))\
+                    .persist()
+                self._log("info", "Obtained %d scaffolds for next iteration.", scaffolds_df.count())
+                i += 1
+            else:
+                self._log("info", "No more scaffolds to decorate.")
+                break
 
         return results_df
 
@@ -141,8 +146,10 @@ class SampleScaffolds(ma.Action):
             scaff, dec = row.split("\t")
             return ps.Row(randomized_scaffold=scaff, decoration_smi=dec)
 
-        sampled_df = SPARK.createDataFrame(SC.textFile(self._tmp_path(
-            "sampled_decorations"), self.num_partitions).map(_read_rows))
+        sampled_rdd = SC.textFile(self._tmp_path("sampled_decorations"), self.num_partitions).map(_read_rows)
+        if not sampled_rdd.count():
+            return None
+        sampled_df = SPARK.createDataFrame(sampled_rdd)
 
         if self.decorator_type == "single":
             processed_df = self._join_results_single(scaffolds_df, sampled_df)
@@ -151,13 +158,17 @@ class SampleScaffolds(ma.Action):
         else:
             raise ValueError("decorator_type has an invalid value '{}'".format(self.decorator_type))
 
-        return processed_df\
+        processed_df = processed_df\
             .where("smiles IS NOT NULL")\
             .groupBy("smiles")\
             .agg(
                 psf.first("scaffold").alias("scaffold"),
                 psf.first("decorations").alias("decorations"),
-                psf.count("smiles").alias("count"))
+                psf.count("smiles").alias("count"))\
+            .persist()
+
+        if processed_df.count():
+            return processed_df
 
     def _join_results_multi(self, scaffolds_df, sampled_df):
         def _join_scaffold(scaff, dec):
