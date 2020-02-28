@@ -11,7 +11,7 @@ The scripts and folders are the following:
 
 Requirements
 ------------
-The repository includes a Conda `environment.yml` file with the required libraries to run all the scripts. In some scripts Spark 2.4.3 is required and by default should run in local mode without any issues. For more complex set-ups, please refer to the [Spark documentation](http://spark.apache.org/docs/2.4.3/). All models were tested on Linux with both a Tesla V-100 and a Geforce 2070. It should work just fine with other Linux setups and a mid-high range GPU.
+The repository includes a Conda `environment.yml` file with the required libraries to run all the scripts. In some scripts Spark 2.4 is required (and thus Java 8) and by default should run in local mode without any issues. For more complex set-ups, please refer to the [Spark documentation](http://spark.apache.org/docs/2.4.3/). All models were tested on Linux with both a Tesla V-100 and a Geforce 2070. It should work just fine with other Linux setups and a mid-high range GPU.
 
 Install
 -------
@@ -58,7 +58,7 @@ A special script (`sample_scaffolds.py`) to exhaustively generate a large number
 2) Samples `n` times each randomized SMILES generated in the previous step (`-n`to change the value).
 3) Joins the scaffolds with the generated decorations and removes duplicates/invalids.
 4) In the case of the single-step, nothing more is necessary, but in the multi-step model, a loop starting at step 1 is repeated until everything is fully decorated.
-5) Everything is written down in a parquet file for further analysis.
+5) Everything, including the half-decorated molecules, is written down in a parquet file for further analysis. The results have to be then extracted from the parquet/csv file (i.e. by extracting SMILES that have the * token, for instance).
 
 **CAUTION:** Large `n` and `r`parameters should be used for the single-step decorator model (for instance `r=2048` and `n=4096`). In the case of the multi-step model, very low values should be used instead (e.g. `r=32` and `n=64`).
 
@@ -79,10 +79,11 @@ Train the DRD2 model using the training set created before.
 Sample one scaffold exhaustively.
 ~~~~
 (reinvent-scaffold-decorator) $> echo "[*:0]C1CCCCC1[*:1]" > scaffold.smi
-(reinvent-scaffold-decorator) $> ./sample_scaffolds.py -m drd2_decorator/models/model.trained.50 -i scaffold.smi -o generated_molecules.parquet -r 32 -n 32 -d multi
+(reinvent-scaffold-decorator) $> spark-submit --driver-memory=8g sample_scaffolds.py -m drd2_decorator/models/model.trained.50 -i scaffold.smi -o generated_molecules.parquet -r 32 -n 32 -d multi
 ~~~~
 
 **Notice**: To change it to a single-step model, the `-d single` option must be used in all cases where `-d multi` appears.
+**Caution**: Spark run in local mode generally has a default of 1g of memory. This can be insufficient in some cases. That is why we use `spark-submit` to run the last script. Please change the --driver-memory=XXg to a suitable value.
 
 Bugs, errors, improvements, suggestions, etc.
 -----------------------------------------------
