@@ -69,7 +69,7 @@ Create the DRD2 dataset as described in the manuscript.
 ~~~~
 (reinvent-scaffold-decorator) $> mkdir -p drd2_decorator/models
 (reinvent-scaffold-decorator) $> ./slice_db.py -i training_sets/drd2.excapedb.smi.gz -u drd2_decorator/excape.drd2.hr.smi -s hr -f conditions.json.example
-(reinvent-scaffold-decorator) $> ./create_randomized_smiles.py -i drd2_decorator/drd2.hr.smi -o drd2_decorator/training -n 50 -d multi
+(reinvent-scaffold-decorator) $> ./create_randomized_smiles.py -i drd2_decorator/excape.drd2.hr.smi -o drd2_decorator/training -n 50 -d multi
 ~~~~
 Train the DRD2 model using the training set created before.
 ~~~~
