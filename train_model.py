@@ -166,7 +166,7 @@ def _add_lr_args(parser):
                         help="Minimum learning rate, when reached the training stops. [DEFAULT: 1E-6]",
                         type=float, default=1E-6)
     parser.add_argument("--learning-rate-gamma", "--lrg",
-                        help="Ratio which the learning change is changed. [DEFAULT: 0.8]", type=float, default=0.8)
+                        help="Ratio which the learning change is changed. [DEFAULT: 0.95]", type=float, default=0.95)
     parser.add_argument("--learning-rate-step", "--lrt",
                         help="Number of epochs until the learning rate changes. [DEFAULT: 1]",
                         type=int, default=1)
