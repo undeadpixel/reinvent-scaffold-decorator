@@ -99,7 +99,8 @@ class AttentionLayer(tnn.Module):
             .softmax(dim=2)
         # (batch, seq_d, seq_e*)@(batch, seq_e, dim) => (batch, seq_d, dim)
         attention_context = attention_weights.bmm(encoder_padded_seqs)
-        return (self._attention_linear(torch.cat([padded_seqs, attention_context], dim=2))*decoder_mask, attention_weights)
+        attention_masked = self._attention_linear(torch.cat([padded_seqs, attention_context], dim=2))*decoder_mask
+        return (attention_masked, attention_weights)
 
 
 class Decoder(tnn.Module):
@@ -180,8 +181,9 @@ class Decorator(tnn.Module):
         :return : The output logits as a tensor (batch, seq_d, dim).
         """
         encoder_padded_seqs, hidden_states = self.forward_encoder(encoder_seqs, encoder_seq_lengths)
-        logits, _, _ = self.forward_decoder(decoder_seqs, decoder_seq_lengths, encoder_padded_seqs, hidden_states)
-        return logits
+        logits, _, attention_weights = self.forward_decoder(
+            decoder_seqs, decoder_seq_lengths, encoder_padded_seqs, hidden_states)
+        return logits, attention_weights
 
     def forward_encoder(self, padded_seqs, seq_lengths):
         """
@@ -198,7 +200,7 @@ class Decorator(tnn.Module):
         :param hidden_states: The hidden states from the encoder.
         :param padded_seqs: The data to feed to the decoder.
         :param seq_lengths: The length of each sequence in the batch.
-        :return : Returns the logits and the hidden state for each element of the sequence passed.
+        :return : Returns the logits, the hidden state for each element of the sequence passed and the attention weights.
         """
         return self._decoder(padded_seqs, seq_lengths, encoder_padded_seqs, hidden_states)
 

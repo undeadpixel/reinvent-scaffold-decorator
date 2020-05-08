@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#  coding=utf-8
+# coding=utf-8
 
 
 import argparse
@@ -30,7 +30,8 @@ class SampleScaffolds(ma.Action):
     cleanup_decoration_udf = psf.udf(_cleanup_decoration, pst.StringType())
 
     def __init__(self, model, batch_size=128, num_randomized_smiles=32, num_decorations_per_scaffold=32,
-                 max_randomized_smiles_sample=10000, num_partitions=1000, decorator_type="multi", logger=None):
+                 max_randomized_smiles_sample=10000, num_partitions=1000, decorator_type="multi",
+                 repeated_randomized_smiles=False, logger=None):
         ma.Action.__init__(self, logger)
 
         self.model = model
@@ -40,27 +41,36 @@ class SampleScaffolds(ma.Action):
         self.max_randomized_smiles_sample = max_randomized_smiles_sample
         self.num_partitions = num_partitions
         self.decorator_type = decorator_type
+        self.repeated_randomized_smiles = repeated_randomized_smiles
 
         self._sample_model_action = ma.SampleModel(self.model, self.batch_size, self.logger)
         self._tmp_dir = tempfile.mkdtemp(prefix="gen_lib")
 
-    def __del__(self):
-        shutil.rmtree(self._tmp_dir, ignore_errors=True)
-
-    def run(self, initial_scaffolds):
-
-        def _generate_randomized_scaffolds(smi, num_rand=self.num_randomized_smiles,
-                                           max_rand=self.max_randomized_smiles_sample):
+        def _generate_randomized_not_repeated(
+                smi, num_rand=self.num_randomized_smiles,
+                max_rand=self.max_randomized_smiles_sample):
             mol = uc.to_mol(smi)
-            if not mol:
-                return []
             randomized_scaffolds = set()
             for _ in range(max_rand):
                 randomized_scaffolds.add(usc.to_smiles(mol, variant="random"))
                 if len(randomized_scaffolds) == num_rand:
                     break
             return list(randomized_scaffolds)
-        randomized_scaffold_udf = psf.udf(_generate_randomized_scaffolds, pst.ArrayType(pst.StringType()))
+
+        def _generate_randomized_repeated(smi, num_rand=self.num_randomized_smiles):
+            mol = uc.to_mol(smi)
+            return [usc.to_smiles(mol, variant="random") for _ in range(num_rand)]
+
+        if repeated_randomized_smiles:
+            self._generate_func = _generate_randomized_repeated
+        else:
+            self._generate_func = _generate_randomized_not_repeated
+
+    def __del__(self):
+        shutil.rmtree(self._tmp_dir, ignore_errors=True)
+
+    def run(self, initial_scaffolds):
+        randomized_scaffold_udf = psf.udf(self._generate_func, pst.ArrayType(pst.StringType()))
         get_attachment_points_udf = psf.udf(usc.get_attachment_points, pst.ArrayType(pst.IntegerType()))
         remove_attachment_point_numbers_udf = psf.udf(usc.remove_attachment_point_numbers, pst.StringType())
 
@@ -76,39 +86,37 @@ class SampleScaffolds(ma.Action):
                     psf.explode("randomized_scaffold").alias("randomized_scaffold"))\
                 .withColumn("attachment_points", get_attachment_points_udf("randomized_scaffold"))\
                 .withColumn("randomized_scaffold", remove_attachment_point_numbers_udf("randomized_scaffold"))\
+                .withColumn("id", psf.monotonically_increasing_id())\
                 .persist()
             self._log("info", "Generated %d randomized SMILES from %d scaffolds.",
                       scaffolds_df.count(), scaffolds_df.select("smiles").distinct().count())
 
             # sample each randomized scaffold N times
-            scaffolds = scaffolds_df.select("randomized_scaffold")\
-                .rdd.map(lambda row: row["randomized_scaffold"]).toLocalIterator()
+            scaffolds = scaffolds_df.select("id", "randomized_scaffold")\
+                .rdd.map(lambda row: (row["id"], row["randomized_scaffold"])).toLocalIterator()
             self._sample_and_write_scaffolds_to_disk(scaffolds, scaffolds_df.count())
             self._log("info", "Sampled %d scaffolds.", scaffolds_df.count())
 
             # merge decorated molecules
-            joined_df = self._join_results(scaffolds_df)
+            joined_df = self._join_results(scaffolds_df).persist()
 
-            if joined_df:
+            if joined_df.count() > 0:
                 self._log("info", "Joined %d -> %d (valid) -> %d unique sampled scaffolds",
                           scaffolds_df.count(), joined_df.agg(psf.sum("count")).head()[0], joined_df.count())
 
-                scaffolds_df = joined_df.join(results_df, on="smiles", how="left_anti")\
-                    .select("smiles", "scaffold", "decorations")\
-                    .where("smiles LIKE '%*%'")
+            scaffolds_df = joined_df.join(results_df, on="smiles", how="left_anti")\
+                .select("smiles", "scaffold", "decorations")\
+                .where("smiles LIKE '%*%'")
+            self._log("info", "Obtained %d scaffolds for next iteration.", scaffolds_df.count())
 
-                results_df = results_df.union(joined_df)\
-                    .groupBy("smiles")\
-                    .agg(
-                        psf.first("scaffold").alias("scaffold"),
-                        psf.first("decorations").alias("decorations"),
-                        psf.sum("count").alias("count"))\
-                    .persist()
-                self._log("info", "Obtained %d scaffolds for next iteration.", scaffolds_df.count())
-                i += 1
-            else:
-                self._log("info", "No more scaffolds to decorate.")
-                break
+            results_df = results_df.union(joined_df)\
+                .groupBy("smiles")\
+                .agg(
+                    psf.first("scaffold").alias("scaffold"),
+                    psf.first("decorations").alias("decorations"),
+                    psf.sum("count").alias("count"))\
+                .persist()
+            i += 1
 
         return results_df
 
@@ -124,32 +132,33 @@ class SampleScaffolds(ma.Action):
         return SPARK.createDataFrame(data, schema=data_schema)
 
     def _sample_and_write_scaffolds_to_disk(self, scaffolds, total_scaffolds):
-        def _update_file(out_file, buffer):
-            for scaff, dec, _ in self._sample_model_action.run(buffer):
-                out_file.write("{}\t{}\n".format(scaff, dec))
+        def _update_file(out_file, idxs, buffer):
+            for idx, (scaff, dec, _) in zip(idxs, self._sample_model_action.run(buffer)):
+                out_file.write("{}\t{}\t{}\n".format(idx, scaff, dec))
 
         out_file = open(self._tmp_path("sampled_decorations"), "w+")
         scaffold_buffer = []
-        for scaffold in ul.progress_bar(scaffolds, total=total_scaffolds, desc="Sampling"):
+        idxs_buffer = []
+        for (idx, scaffold) in ul.progress_bar(scaffolds, total=total_scaffolds, desc="Sampling"):
             scaffold_buffer += [scaffold]*self.num_decorations_per_scaffold
-            if len(scaffold_buffer) == self.batch_size*self.num_decorations_per_scaffold:
-                _update_file(out_file, scaffold_buffer)
+            idxs_buffer += [idx]*self.num_decorations_per_scaffold
+            if len(scaffold_buffer) >= self.batch_size*128:
+                _update_file(out_file, idxs_buffer, scaffold_buffer)
                 scaffold_buffer = []
+                idxs_buffer = []
 
         if scaffold_buffer:
-            _update_file(out_file, scaffold_buffer)
+            _update_file(out_file, idxs_buffer, scaffold_buffer)
         out_file.close()
 
     def _join_results(self, scaffolds_df):
 
         def _read_rows(row):
-            scaff, dec = row.split("\t")
-            return ps.Row(randomized_scaffold=scaff, decoration_smi=dec)
+            idx, _, dec = row.split("\t")
+            return ps.Row(id=idx, decoration_smi=dec)
 
-        sampled_rdd = SC.textFile(self._tmp_path("sampled_decorations"), self.num_partitions).map(_read_rows)
-        if not sampled_rdd.count():
-            return None
-        sampled_df = SPARK.createDataFrame(sampled_rdd)
+        sampled_df = SPARK.createDataFrame(SC.textFile(self._tmp_path(
+            "sampled_decorations"), self.num_partitions).map(_read_rows))
 
         if self.decorator_type == "single":
             processed_df = self._join_results_single(scaffolds_df, sampled_df)
@@ -158,17 +167,13 @@ class SampleScaffolds(ma.Action):
         else:
             raise ValueError("decorator_type has an invalid value '{}'".format(self.decorator_type))
 
-        processed_df = processed_df\
+        return processed_df\
             .where("smiles IS NOT NULL")\
             .groupBy("smiles")\
             .agg(
                 psf.first("scaffold").alias("scaffold"),
                 psf.first("decorations").alias("decorations"),
-                psf.count("smiles").alias("count"))\
-            .persist()
-
-        if processed_df.count():
-            return processed_df
+                psf.count("smiles").alias("count"))
 
     def _join_results_multi(self, scaffolds_df, sampled_df):
         def _join_scaffold(scaff, dec):
@@ -183,7 +188,7 @@ class SampleScaffolds(ma.Action):
         join_scaffold_udf = psf.udf(_join_scaffold, pst.StringType())
         format_attachment_point_udf = psf.udf(_format_attachment_point, pst.StringType())
 
-        return sampled_df.join(scaffolds_df, on="randomized_scaffold")\
+        return sampled_df.join(scaffolds_df, on="id")\
             .withColumn("decoration", format_attachment_point_udf("decoration_smi", psf.col("attachment_points")[0]))\
             .select(
                 join_scaffold_udf("smiles", "decoration").alias("smiles"),
@@ -206,7 +211,7 @@ class SampleScaffolds(ma.Action):
             return {idx: _cleanup_decoration(dec) for dec, idx in zip(decorations, attachment_points)}
         create_decorations_map_udf = psf.udf(_create_decorations_map, pst.MapType(pst.IntegerType(), pst.StringType()))
 
-        return sampled_df.join(scaffolds_df, on="randomized_scaffold")\
+        return sampled_df.join(scaffolds_df, on="id")\
             .select(
                 join_scaffold_udf("randomized_scaffold", "decoration_smi").alias("smiles"),
                 create_decorations_map_udf("decoration_smi", "attachment_points").alias("decorations"),
@@ -223,7 +228,8 @@ def parse_args():
     parser.add_argument("--input-scaffold-path", "-i",
                         help="Path to the input file with scaffolds in SMILES notation.", type=str, required=True)
     parser.add_argument("--output-path", "-o",
-                        help="Path to the output file or directory (see --output-format option for more information).", type=str, required=True)
+                        help="Path to the output file or directory (see --output-format option for more information).",
+                        type=str, required=True)
     parser.add_argument("--batch-size", "-b",
                         help="Batch size (beware GPU memory usage) [DEFAULT: 128]", type=int, default=128)
     parser.add_argument("--num-randomized-smiles", "-r",
@@ -244,6 +250,8 @@ def parse_args():
     parser.add_argument("--output-format", "--of",
                         help="Format of the output FORMATS=(parquet,csv) [DEFAULT: parquet].",
                         type=str, default="parquet")
+    parser.add_argument("--repeated-randomized-smiles", help="The randomized SMILES can be repeated.",
+                        action="store_true", default=False)
 
     return parser.parse_args()
 
@@ -255,10 +263,16 @@ def main():
     model = mm.DecoratorModel.load_from_file(args.model_path, mode="eval")
     input_scaffolds = list(uc.read_smi_file(args.input_scaffold_path))
 
-    sample_scaffolds = SampleScaffolds(model, num_randomized_smiles=args.num_randomized_smiles,
-                                       num_decorations_per_scaffold=args.num_decorations_per_scaffold,
-                                       decorator_type=args.decorator_type, batch_size=args.batch_size,
-                                       num_partitions=args.num_partitions, logger=LOG)
+    sample_scaffolds = SampleScaffolds(
+        model,
+        num_randomized_smiles=args.num_randomized_smiles,
+        num_decorations_per_scaffold=args.num_decorations_per_scaffold,
+        decorator_type=args.decorator_type,
+        batch_size=args.batch_size,
+        num_partitions=args.num_partitions,
+        repeated_randomized_smiles=args.repeated_randomized_smiles,
+        logger=LOG
+    )
 
     results_df = sample_scaffolds.run(input_scaffolds)
 

@@ -57,7 +57,7 @@ def add_stats_args(parser, with_prefix=False, with_required=True):  # pylint: di
     _add_arg("log-path", "l", "Path to the log output folder.", type=str, required=True)
     _add_arg("validation-set-path", "v", "Path to the validation set SMILES file.", type=str, required=True)
     _add_arg("decoration-type", "d",
-             "Type of decoration of the model TYPES=(single, all) [DEFAULT: single].", type=str, default="single")
+             "Type of decoration of the model TYPES=(single, multi) [DEFAULT: single].", type=str, default="single")
     _add_arg("sample-size", "n", "Number of SMILES to sample from the model. [DEFAULT: 5000]", type=int, default=5000)
     _add_arg("with-weights", "w", "Store the weight matrices each epoch [DEFAULT: False].",
              action="store_true", default=False)

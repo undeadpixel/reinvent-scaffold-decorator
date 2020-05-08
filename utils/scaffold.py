@@ -307,8 +307,8 @@ def join_joined_attachments(scaffold_smi, decorations_smi):
     decorations_smi = [add_first_attachment_point_number(dec, i)
                        for i, dec in enumerate(decorations_smi.split(ATTACHMENT_SEPARATOR_TOKEN))]
     scaffold_smi = add_attachment_point_numbers(scaffold_smi)
-    num_attachment_points = len(get_attachment_points(scaffold_smi))
-    if len(decorations_smi) != num_attachment_points:
+    num_att_points = len(get_attachment_points(scaffold_smi))
+    if len(decorations_smi) != num_att_points:
         return None
 
     mol = uc.to_mol(scaffold_smi)

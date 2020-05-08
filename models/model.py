@@ -81,7 +81,7 @@ class DecoratorModel:
             self.network.train()
         return self
 
-    def likelihood(self, scaffold_seqs, scaffold_seq_lengths, decoration_seqs, decoration_seq_lengths):
+    def likelihood(self, scaffold_seqs, scaffold_seq_lengths, decoration_seqs, decoration_seq_lengths, with_attention_weights=False):
         """
         Retrieves the likelihood of a scaffold and its respective decorations.
         :param scaffold_seqs: (batch, seq) A batch of padded scaffold sequences.
@@ -92,10 +92,15 @@ class DecoratorModel:
         """
 
         # NOTE: the decoration_seq_lengths have a - 1 to prevent the end token to be forward-passed.
-        logits = self.network(scaffold_seqs, scaffold_seq_lengths, decoration_seqs,
-                              decoration_seq_lengths - 1)  # (batch, seq - 1, voc)
+        logits, attention_weights = self.network(scaffold_seqs, scaffold_seq_lengths, decoration_seqs,
+                                                 decoration_seq_lengths - 1)  # (batch, seq - 1, voc)
         log_probs = logits.log_softmax(dim=2).transpose(1, 2)  # (batch, voc, seq - 1)
-        return self._nll_loss(log_probs, decoration_seqs[:, 1:]).sum(dim=1)  # (batch)
+
+        logits = self._nll_loss(log_probs, decoration_seqs[:, 1:]).sum(dim=1)  # (batch)
+        if with_attention_weights:
+            return logits, attention_weights
+        else:
+            return logits
 
     @torch.no_grad()
     def sample_decorations(self, scaffold_seqs, scaffold_seq_lengths):

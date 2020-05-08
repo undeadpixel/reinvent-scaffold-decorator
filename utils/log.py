@@ -2,13 +2,6 @@ import logging
 import sys
 import tqdm
 
-# disable messy tensorflow logging
-import tensorflow as tf  # pylint: disable = unused-import
-import absl.logging
-
-logging.root.removeHandler(absl.logging._absl_handler)  # pylint: disable=protected-access
-absl.logging._warn_preinit_stderr = False  # pylint: disable=protected-access
-
 
 class TQDMHandler(logging.Handler):
     def emit(self, record):

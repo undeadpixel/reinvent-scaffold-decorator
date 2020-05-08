@@ -6,7 +6,7 @@ This repository holds all the code used to create, train and sample a SMILES-bas
 The scripts and folders are the following:
 
 1) Python files in the main folder are all scripts. Run them with `-h` for usage information.
-2) `./training_sets` folder: The two molecular sets used in the manuscript, already filtered and the data augmented versions.
+2) `./training_sets` folder: The two molecular sets used in the manuscript, separated between training and validations sets.
 3) `./trained_models` folder: One already trained model for both the DRD2 and ChEMBL models.
 
 Requirements
@@ -58,9 +58,10 @@ A special script (`sample_scaffolds.py`) to exhaustively generate a large number
 2) Samples `n` times each randomized SMILES generated in the previous step (`-n`to change the value).
 3) Joins the scaffolds with the generated decorations and removes duplicates/invalids.
 4) In the case of the single-step, nothing more is necessary, but in the multi-step model, a loop starting at step 1 is repeated until everything is fully decorated.
-5) Everything, including the half-decorated molecules, is written down in a parquet file for further analysis. The results have to be then extracted from the parquet/csv file (i.e. by extracting SMILES that have the * token, for instance).
+5) Everything, including the half-decorated molecules, is written down in a parquet file (or a CSV file, if the option `--output-format=csv` is used instead) for further analysis. The results have to be then extracted from the parquet/CSV file (i.e. by extracting SMILES that have the * token, for instance).
 
-**CAUTION:** Large `n` and `r`parameters should be used for the single-step decorator model (for instance `r=2048` and `n=4096`). In the case of the multi-step model, very low values should be used instead (e.g. `r=32` and `n=64`).
+**CAUTION:** Large `n` and `r`parameters should be used for the single-step decorator model (for instance `r=2048` and `n=4096`). In the case of the multi-step model, very low values should be used instead (e.g. `r=16` and `n=32`).
+**NOTICE:** A new option was added to allow using repeated randomized SMILES (`--repeated-randomized-smiles`). It is disabled by default.
 
 Usage examples
 --------------
@@ -78,12 +79,12 @@ Train the DRD2 model using the training set created before.
 ~~~~
 Sample one scaffold exhaustively.
 ~~~~
-(reinvent-scaffold-decorator) $> echo "[*:0]C1CCCCC1[*:1]" > scaffold.smi
-(reinvent-scaffold-decorator) $> spark-submit --driver-memory=8g sample_scaffolds.py -m drd2_decorator/models/model.trained.50 -i scaffold.smi -o generated_molecules.parquet -r 32 -n 32 -d multi
+(reinvent-scaffold-decorator) $> echo "[*:0]CC=CCN1CCN(c2cccc(Cl)c2[*:1])CC1" > scaffold.smi
+(reinvent-scaffold-decorator) $> spark-submit --driver-memory=8g sample_scaffolds.py -m drd2_decorator/models/model.trained.50 -i scaffold.smi -o generated_molecules.parquet -r 16 -n 16 -d multi
 ~~~~
 
 **Notice**: To change it to a single-step model, the `-d single` option must be used in all cases where `-d multi` appears.
-**Caution**: Spark run in local mode generally has a default of 1g of memory. This can be insufficient in some cases. That is why we use `spark-submit` to run the last script. Please change the --driver-memory=XXg to a suitable value.
+**Caution**: Spark run in local mode generally has a default of 1g of memory. This can be insufficient in some cases. That is why we use `spark-submit` to run the last script. Please change the --driver-memory=XXg to a suitable value. If you get out of memoy errors in any other script, also use the spark-submit trick.
 
 Bugs, errors, improvements, suggestions, etc.
 -----------------------------------------------

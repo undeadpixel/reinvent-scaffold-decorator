@@ -121,7 +121,7 @@ class CollectStatsFromModel(Action):
     """Collects stats from an existing RNN model."""
 
     def __init__(self, model, epoch, training_set, validation_set, writer, sample_size,
-                 decoration_type="single", with_weights=False, other_values=None, logger=None):
+                 decoration_type="multi", with_weights=False, other_values=None, logger=None):
         """
         Creates an instance of CollectStatsFromModel.
         : param model: A model instance initialized as sampling_mode.
@@ -131,7 +131,7 @@ class CollectStatsFromModel(Action):
         : param writer: Writer object(Tensorboard writer).
         : param other_values: Other values to save for the epoch.
         : param sample_size: Number of molecules to sample from the training / validation / sample set.
-        : param decoration_type: Kind of decorations (single or all).
+        : param decoration_type: Kind of decorations (single or multi).
         : param with_weights: To calculate or not the weights.
         : return:
         """
@@ -200,10 +200,7 @@ class CollectStatsFromModel(Action):
         mols = []
         nlls = []
         for scaff, decoration, nll in self._sample_model_action.run(scaffold_list):
-            if self.decoration_type == "single":
-                mol = usc.join_first_attachment(scaff, decoration)
-            elif self.decoration_type == "all":
-                mol = usc.join_joined_attachments(scaff, decoration)
+            mol = usc.join_first_attachment(scaff, decoration)
             if mol:
                 mols.append(mol)
             nlls.append(nll)
@@ -310,7 +307,7 @@ class SampleModel(Action):
 
 class CalculateNLLsFromModel(Action):
 
-    def __init__(self, model, batch_size, logger=None):
+    def __init__(self, model, batch_size, with_attention_weights=False, logger=None):
         """
         Creates an instance of CalculateNLLsFromModel.
         :param model: A model instance.
@@ -320,6 +317,7 @@ class CalculateNLLsFromModel(Action):
         Action.__init__(self, logger)
         self.model = model
         self.batch_size = batch_size
+        self.with_attention_weights = with_attention_weights
 
     def run(self, scaffold_decoration_list):
         """
@@ -331,5 +329,11 @@ class CalculateNLLsFromModel(Action):
         dataloader = tud.DataLoader(dataset, batch_size=self.batch_size, collate_fn=md.DecoratorDataset.collate_fn,
                                     shuffle=False)
         for scaffold_batch, decorator_batch in dataloader:
-            for nll in self.model.likelihood(*scaffold_batch, *decorator_batch).data.cpu().numpy():
-                yield nll
+            ll_data = self.model.likelihood(*scaffold_batch, *decorator_batch,
+                                            with_attention_weights=self.with_attention_weights)
+            if self.with_attention_weights:
+                data = zip(*[d.data.cpu().numpy() for d in ll_data])
+            else:
+                data = ll_data.data.cpu().numpy()
+            for ll_d in data:
+                yield ll_d
